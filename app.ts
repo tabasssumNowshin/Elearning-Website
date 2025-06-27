@@ -28,11 +28,11 @@ app.get("/test",(req: Request, res: Response, next: NextFunction) => {
 
 //unkonown route
 
-app.all("*", (req: Request, res: Response, next: NextFunction) => {
+app.all("/{*path}", (req: Request, res: Response, next: NextFunction) => {
+  // Create a new Error object with a specific message
   const err = new Error(`Route ${req.originalUrl} not found`) as any;
-  err.statusCode = 404;
-  next(err);
+  err.statusCode = 404; // Set the status code for a "Not Found" error
+  next(err); // Pass the error to the next error-handling middleware
 });
-
 
     
