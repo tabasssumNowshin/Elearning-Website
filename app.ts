@@ -4,6 +4,7 @@ export const app = express();
 
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { ErrorMiddleware } from "./middleware/Error";
 
 
 // body parser
@@ -34,5 +35,7 @@ app.all("/{*path}", (req: Request, res: Response, next: NextFunction) => {
   err.statusCode = 404; // Set the status code for a "Not Found" error
   next(err); // Pass the error to the next error-handling middleware
 });
+
+app.use(ErrorMiddleware);
 
     
