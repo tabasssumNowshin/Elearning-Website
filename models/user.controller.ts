@@ -3,12 +3,13 @@ import { Request, Response, NextFunction } from "express";
 import userModel from "./user.model";
 
 import jwt, { JwtPayload, Secret } from 'jsonwebtoken';
-import ejs from "ejs";
+import ejs, { Template } from "ejs";
 import path from "path";
 
 
 import ErrorHandler from "../Utils/ErrorHandler";
 import { catchAsyncErrors } from "../middleware/catchAsyncErrors";
+import sendMail from "../Utils/sendMail";
 
 
 // Register user
@@ -38,13 +39,26 @@ export const registrationUser = catchAsyncErrors(async (req: Request, res: Respo
         const data={user: {name: user.name},activationCode}
         const html =await ejs.renderFile(path.join(__dirname, "../mail/Activation-mail.ejs"),data);
         try{
+            await sendMail({
+                email: user.email,
+                subject : 'activate your account',
+                template :'Activation-mail.ejs',
+                data,
 
-        }catch(error){
+            })
+            res.status(201).json({
+                success: true,
+                message :'please check your email: $(user.email) to activate your account',
+                activationToken:activationToken.token
+
+            })
+
+            }catch(error:any){
+                return next(new ErrorHandler(error.message,400))
             
 
         }
-        
-}
+    }
         catch(error:any){
             return next (new ErrorHandler(error.message,400))
         
