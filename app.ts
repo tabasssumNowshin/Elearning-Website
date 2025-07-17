@@ -19,7 +19,7 @@ app.use(cors({
     origin: process.env.ORIGIN 
 }));
 //router
-app.use("/api/v1,userRouter")
+app.use("/api/v1",userRouter)
 
 //TESTING API
 app.get("/test",(req: Request, res: Response, next: NextFunction) => {

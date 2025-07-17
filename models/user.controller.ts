@@ -85,4 +85,20 @@ const createActivationToken = (user: any): IActivationToken => {
 
     return { token, activationCode };
 };
+interface IActivationRequest{
+    activation_token = string;
+    activation_code =string;
+}
+export const activateuser = catchAsyncErrors(async(req:request, res:Response,next:NextFunction)=>{
+    try{
+        const {activation_token,activation_code} = req.body as IActivationRequest;
+        const newUser: {user: IUser; activationCode:string} = jwt.verify(
+            activation_token,
+            process.env.ACTIVATION_SECRET as string
+        )
+        const decoded = jwt.verify(activation_token,process.env.ACTIVATION_SECRET as secret) as (user:IRegistrationBody,activationCode:string);
+    }catch(error:any){
+        return next(new ErrorHandler(error.message,400));
+    }
+})
 
