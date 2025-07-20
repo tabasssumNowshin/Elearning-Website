@@ -208,6 +208,7 @@ export const updateAccessToken = catchAsyncErrors(async (req: Request, res: Resp
         const refreshToken = jwt.sign({ id: user._id }, process.env.REFRESH_TOKEN as string, {
             expiresIn: "3d"
         })
+        req.user=user;
         res.cookie("access_token", accessToken, accessTokenOptions);
         res.cookie("refresh_token", refreshToken, refreshTokenOptions);
 
@@ -262,5 +263,45 @@ export const socialAuth = catchAsyncErrors(
         }
     }
 );
+// update user info
+interface IUpdateUserInfo {
+    name?: string;
+    email?: string;
+}
+
+export const updateUserInfo = catchAsyncErrors(
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { name, email } = req.body as IUpdateUserInfo;
+            const userId = req.user?._id;
+            const user = await userModel.findById(userId);
+
+            if (email && user) {
+                const isEmailExist = await userModel.findOne({ email });
+                if (isEmailExist) {
+                    return next(new ErrorHandler("Email already exist", 400));
+                }
+                user.email = email;
+            }
+
+            if (name && user) {
+                user.name = name;
+            }
+
+            await user?.save();
+
+            await redis.set(userId!, JSON.stringify(user));
+
+            res.status(201).json({
+                success: true,
+                user,
+            });
+        } catch (error: any) {
+            return next(new ErrorHandler(error.message, 400));
+        }
+    }
+);
+
+
 
 
