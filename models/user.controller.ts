@@ -1,7 +1,7 @@
 require('dotenv').config();
 import { Request, Response, NextFunction } from "express";
 import userModel, { IUser } from "./user.model";
-import { redis  } from "../redis";
+import { redis } from "../redis";
 import jwt, { JwtPayload, Secret } from 'jsonwebtoken';
 import ejs, { Template } from "ejs";
 import path from "path";
@@ -11,6 +11,7 @@ import ErrorHandler from "../Utils/ErrorHandler";
 import { catchAsyncErrors } from "../middleware/catchAsyncErrors";
 import sendMail from "../Utils/sendMail";
 import { accessTokenOptions, refreshTokenOptions, sendToken } from "../Utils/jwt";
+import { getUserById } from "../services/user.service";
 
 
 // Register user
@@ -37,34 +38,34 @@ export const registrationUser = catchAsyncErrors(async (req: Request, res: Respo
         };
 
         const activationToken = createActivationToken(user);
-        const activationCode= activationToken.activationCode;
-        const data={user: {name: user.name},activationCode}
-        const html =await ejs.renderFile(path.join(__dirname, "../mail/Activation-mail.ejs"),data);
-        try{
+        const activationCode = activationToken.activationCode;
+        const data = { user: { name: user.name }, activationCode }
+        const html = await ejs.renderFile(path.join(__dirname, "../mail/Activation-mail.ejs"), data);
+        try {
             await sendMail({
                 email: user.email,
-                subject : 'activate your account',
-                template :'Activation-mail.ejs',
+                subject: 'activate your account',
+                template: 'Activation-mail.ejs',
                 data,
 
             })
             res.status(201).json({
                 success: true,
-                message :'please check your email: $(user.email) to activate your account',
-                activationToken:activationToken.token
+                message: 'please check your email: $(user.email) to activate your account',
+                activationToken: activationToken.token
 
             })
 
-            }catch(error:any){
-                return next(new ErrorHandler(error.message,400))
-            
+        } catch (error: any) {
+            return next(new ErrorHandler(error.message, 400))
+
 
         }
     }
-        catch(error:any){
-            return next (new ErrorHandler(error.message,400))
-        
-        }
+    catch (error: any) {
+        return next(new ErrorHandler(error.message, 400))
+
+    }
 });
 interface IActivationToken {
     token: string;
@@ -88,30 +89,30 @@ const createActivationToken = (user: any): IActivationToken => {
     return { token, activationCode };
 };
 // activate user
-interface IActivationRequest{
+interface IActivationRequest {
     activation_token: string;
     activation_code: string;
 }
 
-export const activateUser = catchAsyncErrors(async(req:Request,res:Response,next:NextFunction) => {
+export const activateUser = catchAsyncErrors(async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const {activation_token,activation_code} = req.body as IActivationRequest;
+        const { activation_token, activation_code } = req.body as IActivationRequest;
 
-        const newUser: {user: IUser; activationCode:string} = jwt.verify(
+        const newUser: { user: IUser; activationCode: string } = jwt.verify(
             activation_token,
             process.env.ACTIVATION_SECRET as string
-        ) as {user: IUser; activationCode:string};
+        ) as { user: IUser; activationCode: string };
 
-        if(newUser.activationCode !== activation_code){
-            return next(new ErrorHandler("Invalid activation code",400));
+        if (newUser.activationCode !== activation_code) {
+            return next(new ErrorHandler("Invalid activation code", 400));
         }
 
-        const {name,email,password} = newUser.user;
+        const { name, email, password } = newUser.user;
 
-        const existUser = await userModel.findOne({email});
+        const existUser = await userModel.findOne({ email });
 
-        if(existUser){
-            return next(new ErrorHandler("Email already exist",400));
+        if (existUser) {
+            return next(new ErrorHandler("Email already exist", 400));
         }
         const user = await userModel.create({
             name,
@@ -125,62 +126,62 @@ export const activateUser = catchAsyncErrors(async(req:Request,res:Response,next
 
 
     }
-    catch(error:any){
-        return next(new ErrorHandler(error.message,400))
+    catch (error: any) {
+        return next(new ErrorHandler(error.message, 400))
     }
 })
 
 //login user
- interface ILoginRequest {
+interface ILoginRequest {
     email: string;
     password: string;
- }
- export const loginUser = catchAsyncErrors(async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { email, password } = req.body as ILoginRequest;
+}
+export const loginUser = catchAsyncErrors(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { email, password } = req.body as ILoginRequest;
 
-    if (!email || !password) {
-      return next(new ErrorHandler("Please enter email and password", 400));
+        if (!email || !password) {
+            return next(new ErrorHandler("Please enter email and password", 400));
+        }
+
+        const user = await userModel.findOne({ email }).select("+password");
+
+        if (!user) {
+            return next(new ErrorHandler("Invalid email or password", 400));
+        }
+
+        const isPasswordMatch = await user.comparePassword(password);
+        if (!isPasswordMatch) {
+            return next(new ErrorHandler("Invalid email or password", 400));
+        }
+        sendToken(user, 200, res)
+
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 400));
     }
-
-    const user = await userModel.findOne({ email }).select("+password");
-
-    if (!user) {
-      return next(new ErrorHandler("Invalid email or password", 400));
-    }
-
-    const isPasswordMatch = await user.comparePassword(password);
-    if (!isPasswordMatch) {
-      return next(new ErrorHandler("Invalid email or password", 400));
-    }
-    sendToken(user,200,res)
-
-  } catch (error: any) {
-    return next(new ErrorHandler(error.message, 400));
-  }
 });
 
 
 // logout user
 export const logoutUser = catchAsyncErrors(
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      res.cookie("access_token", "", { maxAge: 1 });
-      res.cookie("refresh_token", "", { maxAge: 1 });
-      const userId = req.user?._id || "";
-      redis.del(userId);
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            res.cookie("access_token", "", { maxAge: 1 });
+            res.cookie("refresh_token", "", { maxAge: 1 });
+            const userId = req.user?._id || "";
+            redis.del(userId);
 
-      res.status(200).json({
-        success: true,
-        message: "Logged out successfully",
-      });
-    } catch (error: any) {
-      return next(new ErrorHandler(error.message, 400));
+            res.status(200).json({
+                success: true,
+                message: "Logged out successfully",
+            });
+        } catch (error: any) {
+            return next(new ErrorHandler(error.message, 400));
+        }
     }
-  }
 );
 
-//update access token
+
 // update access token
 export const updateAccessToken = catchAsyncErrors(async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -201,25 +202,45 @@ export const updateAccessToken = catchAsyncErrors(async (req: Request, res: Resp
 
         const user = JSON.parse(session);
 
-        const accessToken = jwt.sign({ id: user._id }, process.env.ACCESS_TOKEN as string,{
-             expiresIn:"5m"
+        const accessToken = jwt.sign({ id: user._id }, process.env.ACCESS_TOKEN as string, {
+            expiresIn: "5m"
         })
-        const refreshToken = jwt.sign({ id: user._id }, process.env.REFRESH_TOKEN as string,{
-             expiresIn:"3d"
+        const refreshToken = jwt.sign({ id: user._id }, process.env.REFRESH_TOKEN as string, {
+            expiresIn: "3d"
         })
-        res.cookie("access_token",accessToken,accessTokenOptions);
+        res.cookie("access_token", accessToken, accessTokenOptions);
         res.cookie("refresh_token", refreshToken, refreshTokenOptions);
 
         res.status(200).json({
-        status:"success",
-        accessToken,
+            status: "success",
+            accessToken,
         });
 
-       
+
 
     } catch (error: any) {
         return next(new ErrorHandler(error.message, 400));
     }
 });
 
-        
+
+
+// get user info
+export const getUserInfo = catchAsyncErrors(
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const userId = req.user?._id;
+
+            if (!userId) {
+                return next(new ErrorHandler("User not found", 404));
+            }
+
+            await getUserById(userId, res);
+
+        } catch (error: any) {
+            return next(new ErrorHandler(error.message, 400));
+        }
+    }
+);
+
+
