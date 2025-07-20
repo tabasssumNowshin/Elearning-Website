@@ -10,7 +10,7 @@ import path from "path";
 import ErrorHandler from "../Utils/ErrorHandler";
 import { catchAsyncErrors } from "../middleware/catchAsyncErrors";
 import sendMail from "../Utils/sendMail";
-import { sendToken } from "../Utils/jwt";
+import { accessTokenOptions, refreshTokenOptions, sendToken } from "../Utils/jwt";
 
 
 // Register user
@@ -186,7 +186,7 @@ export const updateAccessToken = catchAsyncErrors(async (req: Request, res: Resp
     try {
         const refresh_token = req.cookies.refresh_token as string;
         const decoded = jwt.verify(refresh_token,
-            process.env.REFRESH_TOKEN_SECRET as string) as JwtPayload;
+            process.env.REFRESH_TOKEN as string) as JwtPayload;
 
         const message = 'Could not refresh token';
         if (!decoded) {
@@ -204,6 +204,17 @@ export const updateAccessToken = catchAsyncErrors(async (req: Request, res: Resp
         const accessToken = jwt.sign({ id: user._id }, process.env.ACCESS_TOKEN as string,{
              expiresIn:"5m"
         })
+        const refreshToken = jwt.sign({ id: user._id }, process.env.REFRESH_TOKEN as string,{
+             expiresIn:"3d"
+        })
+        res.cookie("access_token",accessToken,accessTokenOptions);
+        res.cookie("refresh_token", refreshToken, refreshTokenOptions);
+
+        res.status(200).json({
+        status:"success",
+        accessToken,
+        });
+
        
 
     } catch (error: any) {
