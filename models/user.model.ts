@@ -7,6 +7,7 @@ import Jwt from 'jsonwebtoken';
 const emailRegexPattern: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface IUser extends Document {
+    _id: string;
     name: string;
     email: string;
     password: string;
@@ -74,11 +75,16 @@ userSchema.pre<IUser>("save", async function (next) {
 
 //sign access token 
 userSchema.methods.SignAccessToken = function (){
-    return Jwt.sign({id: this._id},process.env.ACCESS_TOKEN || ' ')
+    return Jwt.sign({id: this._id},process.env.ACCESS_TOKEN || ' ',{
+        expiresIn:'5m'
+    })
 
 }
 userSchema.methods.SignRefreshToken = function (){
-    return Jwt.sign({id: this._id},process.env.REFRESH_TOKEN || ' ')
+    return Jwt.sign({id: this._id},process.env.REFRESH_TOKEN || ' ',{
+        expiresIn:'3d'
+
+    })
 
 }
 

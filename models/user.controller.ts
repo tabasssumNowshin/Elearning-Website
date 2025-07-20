@@ -1,7 +1,7 @@
 require('dotenv').config();
 import { Request, Response, NextFunction } from "express";
 import userModel, { IUser } from "./user.model";
-
+import { redis  } from "../redis";
 import jwt, { JwtPayload, Secret } from 'jsonwebtoken';
 import ejs, { Template } from "ejs";
 import path from "path";
@@ -10,6 +10,7 @@ import path from "path";
 import ErrorHandler from "../Utils/ErrorHandler";
 import { catchAsyncErrors } from "../middleware/catchAsyncErrors";
 import sendMail from "../Utils/sendMail";
+import { sendToken } from "../Utils/jwt";
 
 
 // Register user
@@ -20,6 +21,7 @@ interface IRegistrationBody {
     avatar?: string;
 }
 export const registrationUser = catchAsyncErrors(async (req: Request, res: Response, next: NextFunction) => {
+    console.log("Received registration data:", req.body);
     try {
         const { name, email, password } = req.body;
 
@@ -116,6 +118,7 @@ export const activateUser = catchAsyncErrors(async(req:Request,res:Response,next
             email,
             password,
         })
+        console.log("User created successfully:", user);
         res.status(201).json({
             success: true,
         })
@@ -150,10 +153,62 @@ export const activateUser = catchAsyncErrors(async(req:Request,res:Response,next
     if (!isPasswordMatch) {
       return next(new ErrorHandler("Invalid email or password", 400));
     }
+    sendToken(user,200,res)
 
   } catch (error: any) {
     return next(new ErrorHandler(error.message, 400));
   }
+});
+
+
+// logout user
+export const logoutUser = catchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.cookie("access_token", "", { maxAge: 1 });
+      res.cookie("refresh_token", "", { maxAge: 1 });
+      const userId = req.user?._id || "";
+      redis.del(userId);
+
+      res.status(200).json({
+        success: true,
+        message: "Logged out successfully",
+      });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+//update access token
+// update access token
+export const updateAccessToken = catchAsyncErrors(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const refresh_token = req.cookies.refresh_token as string;
+        const decoded = jwt.verify(refresh_token,
+            process.env.REFRESH_TOKEN_SECRET as string) as JwtPayload;
+
+        const message = 'Could not refresh token';
+        if (!decoded) {
+            return next(new ErrorHandler(message, 400));
+        }
+
+        const session = await redis.get(decoded.id as string);
+
+        if (!session) {
+            return next(new ErrorHandler(message, 400));
+        }
+
+        const user = JSON.parse(session);
+
+        const accessToken = jwt.sign({ id: user._id }, process.env.ACCESS_TOKEN as string,{
+             expiresIn:"5m"
+        })
+       
+
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 400));
+    }
 });
 
         
