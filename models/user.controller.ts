@@ -208,7 +208,7 @@ export const updateAccessToken = catchAsyncErrors(async (req: Request, res: Resp
         const refreshToken = jwt.sign({ id: user._id }, process.env.REFRESH_TOKEN as string, {
             expiresIn: "3d"
         })
-        req.user=user;
+        req.user = user;
         res.cookie("access_token", accessToken, accessTokenOptions);
         res.cookie("refresh_token", refreshToken, refreshTokenOptions);
 
@@ -291,6 +291,53 @@ export const updateUserInfo = catchAsyncErrors(
             await user?.save();
 
             await redis.set(userId!, JSON.stringify(user));
+
+            res.status(201).json({
+                success: true,
+                user,
+            });
+        } catch (error: any) {
+            return next(new ErrorHandler(error.message, 400));
+        }
+    }
+);
+
+// update user password
+interface IUpdatePassword {
+    oldPassword: string;
+    newPassword: string;
+}
+
+export const updatePassword = catchAsyncErrors(
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { oldPassword, newPassword } = req.body as IUpdatePassword;
+            if (!oldPassword || !newPassword) {
+                return next(new ErrorHandler("please enter password", 400));
+            }
+
+            const user = await userModel.findById(req.user?._id).select("+password");
+
+            if (user?.password === undefined) {
+                return next(new ErrorHandler("Invalid user", 400));
+            }
+
+            const isPasswordMatch = await user?.comparePassword(oldPassword);
+
+            if (!isPasswordMatch) {
+                return next(new ErrorHandler("Invalid old password", 400));
+            }
+
+            user.password = newPassword;
+
+            await user?.save();
+            //eta check korte hbe
+            if (req.user?._id) {
+                await redis.set(req.user._id, JSON.stringify(user));
+            } else {
+                console.error("User not authenticated.");
+            }
+
 
             res.status(201).json({
                 success: true,
