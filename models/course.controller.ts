@@ -5,6 +5,7 @@ import cloudinary from "cloudinary";
 import { createCourse } from "../services/course.service";
 import CourseModel from "./course.model";
 import { redis } from "../redis";
+import mongoose from "mongoose";
 
 // upload course
 export const uploadCourse = catchAsyncErrors(async (req: Request, res: Response, next: NextFunction) => {
@@ -85,7 +86,7 @@ export const getSingleCourse = catchAsyncErrors(
                 const course = await CourseModel.findById(req.params.id).select(
                     "-courseData.videoUrl -courseData.suggestion -courseData.questions -courseData.links"
                 );
-                
+
                 await redis.set(courseId, JSON.stringify(course));
 
                 res.status(200).json({
@@ -106,7 +107,7 @@ export const getAllCourses = catchAsyncErrors(
 
             if (isCacheExist) {
                 const courses = JSON.parse(isCacheExist);
-               
+
                 res.status(200).json({
                     success: true,
                     courses,
@@ -115,8 +116,8 @@ export const getAllCourses = catchAsyncErrors(
                 const courses = await CourseModel.find().select(
                     "-courseData.videoUrl -courseData.suggestion -courseData.questions -courseData.links"
                 );
-               
-                 await redis.set("allCourses", JSON.stringify(courses));
+
+                await redis.set("allCourses", JSON.stringify(courses));
 
                 res.status(200).json({
                     success: true,
@@ -136,21 +137,21 @@ export const getCourseByUser = catchAsyncErrors(
         try {
             const userCourseList = req.user?.courses;
             const courseId = req.params.id;
-            
+
             const courseExists = userCourseList?.find(
                 (course: any) => course._id.toString() === courseId
             );
-            
+
             if (!courseExists) {
                 return next(
                     new ErrorHandler("You are not eligible to access this course", 404)
                 );
             }
-            
+
             const course = await CourseModel.findById(courseId);
-            
+
             const content = course?.courseData;
-            
+
             res.status(200).json({
                 success: true,
                 content,
@@ -159,4 +160,48 @@ export const getCourseByUser = catchAsyncErrors(
             return next(new ErrorHandler(error.message, 500));
         }
     }
+);
+
+// add question in course
+interface IAddQuestionData {
+    question: string;
+    courseId: string;
+    contentId: string;
+}
+
+export const addQuestion = catchAsyncErrors(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { question, courseId, contentId }: IAddQuestionData = req.body;
+        const course = await CourseModel.findById(courseId);
+
+        if (!mongoose.Types.ObjectId.isValid(contentId)) {
+            return next(new ErrorHandler("Invalid content id", 400));
+        }
+
+        const courseContent = course?.courseData?.find((item: any) => item._id.equals(contentId));
+
+        if (!courseContent) {
+            return next(new ErrorHandler("Invalid content id", 400));
+        }
+        //create a new question object
+        const newQuestion: any = {
+            user: req.user,
+            question,
+            questionReplies: [],
+        };
+        //add this question to our course content
+        courseContent.questions.push(newQuestion);
+
+        //save the updated course
+        await course?.save();
+        res.status(200).json({
+            success: true,
+            course,
+        });
+
+
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 500));
+    }
+}
 );
