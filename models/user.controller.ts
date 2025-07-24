@@ -13,6 +13,7 @@ import sendMail from "../Utils/sendMail";
 import { accessTokenOptions, refreshTokenOptions, sendToken } from "../Utils/jwt";
 import { getUserById } from "../services/user.service";
 import cloudinary from "cloudinary"
+import CourseModel from "./course.model";
 
 
 // Register user
